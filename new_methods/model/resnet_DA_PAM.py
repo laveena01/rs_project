@@ -1,10 +1,14 @@
+import cv2
+import numpy
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
+from matplotlib import pyplot as plt
 from torchvision import models
 from new_methods.model.my_DA import DA
 from new_methods.model.PAM_CAM import *
 from new_methods.expr.train import device
+
 
 class FC_ResNet(nn.Module):
 
@@ -50,10 +54,10 @@ class FC_ResNet(nn.Module):
             nn.Conv2d(1024, out_planes, kernel_size=1, padding=0)  # fc8
         )
 
-
     def forward(self, x, labels=None):
         x = self.features[0:7](x)
 
+        # print(x.size())
 
         feat = self.DA(x)
         #
@@ -62,9 +66,36 @@ class FC_ResNet(nn.Module):
         if self.enable_CAM != False or self.enable_PAM != False:
             x = self.PAM(x, self.enable_PAM, self.enable_CAM)
 
+        # TODO Display Feature Maps
+
+        # img = numpy.zeros((28 * 16 + 16 * 5, 28 * 16 + 16 * 5))
+        # for i in range(16):
+        #     fig = plt.figure(figsize=(13, 13))
+        #     for j in range(16):
+        #         fig.add_subplot(4, 4, j + 1)
+        #         plt.imshow(x[0][i * 16 + j].cpu().detach().numpy())
+        #         plt.axis('off')
+        #     plt.savefig(f"C:\\Users\\meemu\\Downloads\\CODE_AND_RESULTS\\{i}.png")
+        #
+
+
+        # for i, feat_map in enumerate(x[0]):
+        #     fig.add_subplot(16, 16, i + 1)
+
+        # plt.imshow(img, cmap='gray')
+
         self.parent_map = x
 
         x = self.features[7](x)
+        # print(x.size())
+        # for i in range(16):
+        #     fig = plt.figure(figsize=(13, 13))
+        #     for j in range(32):
+        #         fig.add_subplot(8, 4, j + 1)
+        #         plt.imshow(x[0][i * 32 + j].cpu().detach().numpy())
+        #         plt.axis('off')
+        #     plt.savefig(f"C:\\Users\\meemu\\Downloads\\CODE_AND_RESULTS\\dcam\\{i}.png")
+
         x = self.cls(x)
         self.salience_maps = x
 
@@ -85,7 +116,7 @@ class FC_ResNet(nn.Module):
         loss_cls = self.CrossEntropyLoss(logits, gt_labels)
 
         # loss_cls = F.multilabel_soft_margin_loss(logits, gt_labels)
-        loss_val = loss_cls #+ self.cos_alpha * loss_cos
+        loss_val = loss_cls  # + self.cos_alpha * loss_cos
 
         return loss_val  # , loss_cls, loss_cos
 
@@ -96,12 +127,14 @@ class FC_ResNet(nn.Module):
 
 def model(pretrained=True, num_classes=10, cos_alpha=0.01, num_maps=4, pam=True, cam=True):
     model = models.resnet34(pretrained=pretrained)
-    model_ft = FC_ResNet(model, num_classes=num_classes, cos_alpha=cos_alpha, num_maps=num_maps, enable_PAM=pam, enable_CAM=cam)
+    model_ft = FC_ResNet(model, num_classes=num_classes, cos_alpha=cos_alpha, num_maps=num_maps, enable_PAM=pam,
+                         enable_CAM=cam)
     return model_ft
 
 
 if __name__ == '__main__':
     from model.basenet import resnet34
+
     model = resnet34(pretrained=True)
     model_ft = FC_ResNet(model, num_classes=8, cos_alpha=0.01, num_maps=4).to(device)
     x = torch.randn(1, 3, 448, 448).to(device)
